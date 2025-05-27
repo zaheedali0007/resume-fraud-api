@@ -1,26 +1,29 @@
 from flask import Flask, request, jsonify
-import pickle
-from sklearn.feature_extraction.text import TfidfVectorizer
+import joblib
 
 app = Flask(__name__)
 
-# Load the trained model and vectorizer
-with open("resume_fraud_model.pkl", "rb") as model_file:
-    model = pickle.load(model_file)
+# Load model and vectorizer
+model = joblib.load("resume_fraud_model.pkl")
+vectorizer = joblib.load("vectorizer.pkl")
 
-with open("vectorizer.pkl", "rb") as vec_file:
-    vectorizer = pickle.load(vec_file)
-
-@app.route("/predict", methods=["POST"])
+@app.route('/predict', methods=['POST'])
 def predict():
-    data = request.get_json(force=True)
-    resume = data.get("resume")
-    if not resume:
-        return jsonify({"error": "No resume provided"}), 400
+    data = request.get_json()
+    if 'resume' not in data:
+        return jsonify({'error': 'Missing "resume" field'}), 400
 
-    vectorized = vectorizer.transform([resume])
-    prediction = int(model.predict(vectorized)[0])
-    return jsonify({"prediction": prediction})
+    resume_text = data['resume']
+    features = vectorizer.transform([resume_text])
+    prediction = model.predict(features)[0]
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    label = "Genuine" if prediction == 0 else "Fraudulent"
+
+    return jsonify({'prediction': label})
+
+@app.route('/')
+def home():
+    return 'Resume Fraud Detection API is live! Use POST /predict with JSON {"resume": "..."}'
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
