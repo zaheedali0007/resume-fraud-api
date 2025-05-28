@@ -1,29 +1,33 @@
 from flask import Flask, request, jsonify
-import joblib
+from flask_cors import CORS
+import pickle
 
 app = Flask(__name__)
+CORS(app)
 
-# Load model and vectorizer
-model = joblib.load("resume_fraud_model.pkl")
-vectorizer = joblib.load("vectorizer.pkl")
+# Load the vectorizer and model
+with open("vectorizer.pkl", "rb") as f:
+    vectorizer = pickle.load(f)
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    data = request.get_json()
-    if 'resume' not in data:
-        return jsonify({'error': 'Missing "resume" field'}), 400
-
-    resume_text = data['resume']
-    features = vectorizer.transform([resume_text])
-    prediction = model.predict(features)[0]
-
-    label = "Genuine" if prediction == 0 else "Fraudulent"
-
-    return jsonify({'prediction': label})
+with open("resume_fraud_model.pkl", "rb") as f:
+    model = pickle.load(f)
 
 @app.route('/')
 def home():
     return 'Resume Fraud Detection API is live! Use POST /predict with JSON {"resume": "..."}'
 
+@app.route('/predict', methods=['POST'])
+def predict():
+    data = request.get_json()
+    resume_text = data.get('resume', '')
+
+    if not resume_text.strip():
+        return jsonify({'error': 'Resume content is empty'}), 400
+
+    vectorized = vectorizer.transform([resume_text])
+    prediction = model.predict(vectorized)[0]
+    label = 'Genuine' if prediction == 0 else 'Fraudulent'
+    return jsonify({'prediction': label})
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(debug=True)
